@@ -1,204 +1,79 @@
 "use client";
-
 import { useState } from "react";
+import UploadForm from "@/components/UploadForm";
+import Tabs from "@/components/Tabs";
+import Feedback from "@/components/Feedback";
+import InterviewQuestions from "@/components/Interview";
+import ParsedResume from "@/components/ParsedResume";
 
 export default function ResumePage() {
-    const [file, setFile] = useState<File | null>(null);
-    const [jobDescription, setJobDescription] = useState("");
-    const [loading, setLoading] = useState(false);
     const [parsed, setParsed] = useState<any>(null);
     const [feedback, setFeedback] = useState<any>(null);
+    const [questions, setQuestions] = useState<any[]>([]);
+    const [activeTab, setActiveTab] = useState("feedback");
     const [error, setError] = useState<string | null>(null);
+    const [loading, setLoading] = useState(false);
 
-    async function handleSubmit(e: React.FormEvent) {
-        e.preventDefault();
-        if (!file) return;
-
+    async function handleSubmit(file: File, jobDescription: string) {
         setLoading(true);
         setError(null);
-        setParsed(null);
-        setFeedback(null);
 
         try {
-            // 1. Upload file
+            // 1. Upload resume & parse
             const formData = new FormData();
             formData.append("file", file);
+            const parsedRes = await fetch("/api/parse", { method: "POST", body: formData });
+            const parsedData = await parsedRes.json();
+            setParsed(parsedData);
 
-            const uploadRes = await fetch("/api/upload", {
-                method: "POST",
-                body: formData,
-            });
-
-            const uploadText = await uploadRes.text();
-            let uploadJson;
-            try {
-                uploadJson = JSON.parse(uploadText);
-            } catch (e) {
-                throw new Error(`Upload failed: ${uploadRes.status} ${uploadText}`);
-            }
-
-            if (!uploadJson.success || !uploadJson.fileId) {
-                throw new Error(uploadJson.error || "No fileId received");
-            }
-
-            const fileId = uploadJson.fileId;
-
-            // 2. Parse file
-            const parseRes = await fetch("/api/parse", {
+            // 2. Get feedback
+            const feedbackRes = await fetch("/api/feedback", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ fileId }),
+                body: JSON.stringify({ parsedResume: parsedData, jobDescription }),
             });
-            
-            const parseText = await parseRes.text();
-            let parseJson;
-            try {
-                parseJson = JSON.parse(parseText);
-            } catch (e) {
-                throw new Error(`Parse failed: ${parseRes.status} ${parseText}`);
-            }
+            const feedbackData = await feedbackRes.json();
+            setFeedback(feedbackData);
 
-            if (!parseRes.ok || !parseJson.success) {
-                throw new Error(parseJson.error || "Parse failed");
-            }
-
-            setParsed(parseJson);
-
-            // 3. Get feedback if job description is provided
-            if (jobDescription.trim()) {
-                const feedbackRes = await fetch("/api/feedback", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        parsedResume: parseJson.parsed.structured,
-                        jobDescription
-                    }),
-                });
-                
-                const feedbackText = await feedbackRes.text();
-                let feedbackJson;
-                try {
-                    feedbackJson = JSON.parse(feedbackText);
-                } catch (e) {
-                    throw new Error(`Feedback failed: ${feedbackRes.status} ${feedbackText}`);
-                }
-
-                if (!feedbackRes.ok || !feedbackJson.success) {
-                    throw new Error(feedbackJson.error || "Feedback failed");
-                }
-
-                setFeedback(feedbackJson);
-            }
-        } catch (err: any) {
-            setError(err.message);
+            // 3. Get interview questions
+            const questionRes = await fetch("/api/interview", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ parsedResume: parsedData, jobDescription }),
+            });
+            const questionData = await questionRes.json();
+            setQuestions(questionData.questions || []);
+        } catch (err) {
+            console.error(err);
+            setError("Something went wrong.");
         } finally {
             setLoading(false);
         }
     }
 
     return (
-        <div style={{ padding: "2rem", fontFamily: "sans-serif", maxWidth: "800px", margin: "0 auto" }}>
-            <h1>Resume Parser Demo</h1>
+        <div style={{ padding: "2rem", maxWidth: "1000px", margin: "0 auto" }}>
+            <h1>Resume Parser & Career Coach</h1>
+            <UploadForm onSubmit={handleSubmit} />
 
-            <form onSubmit={handleSubmit} style={{ marginBottom: "2rem" }}>
-                <div style={{ marginBottom: "1rem" }}>
-                    <label htmlFor="file" style={{ display: "block", marginBottom: "0.5rem" }}>
-                        Upload Resume:
-                    </label>
-                    <input
-                        id="file"
-                        type="file"
-                        accept=".pdf,.docx,.txt"
-                        onChange={(e) => setFile(e.target.files?.[0] || null)}
+            {loading && <p>⏳ Analyzing resume...</p>}
+            {error && <div style={{ color: "red" }}>❌ {error}</div>}
+
+            {(feedback || questions.length > 0 || parsed) && (
+                <>
+                    <Tabs
+                        active={activeTab}
+                        onChange={setActiveTab}
+                        tabs={[
+                            { id: "feedback", label: "Resume Feedback" },
+                            { id: "questions", label: "Interview Questions" },
+                            { id: "resume", label: "Parsed Resume" },
+                        ]}
                     />
-                </div>
-                
-                <div style={{ marginBottom: "1rem" }}>
-                    <label htmlFor="jobDescription" style={{ display: "block", marginBottom: "0.5rem" }}>
-                        Job Description (optional):
-                    </label>
-                    <textarea
-                        id="jobDescription"
-                        value={jobDescription}
-                        onChange={(e) => setJobDescription(e.target.value)}
-                        rows={5}
-                        style={{ width: "100%", padding: "0.5rem" }}
-                        placeholder="Paste the job description here to get tailored feedback"
-                    />
-                </div>
-                
-                <button 
-                    type="submit" 
-                    disabled={!file || loading} 
-                    style={{ 
-                        padding: "0.5rem 1rem", 
-                        backgroundColor: !file || loading ? "#ccc" : "#0070f3",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "4px",
-                        cursor: !file || loading ? "not-allowed" : "pointer"
-                    }}
-                >
-                    {loading ? "Processing..." : "Upload & Parse"}
-                </button>
-            </form>
-
-            {error && (
-                <div style={{ color: "red", marginBottom: "1rem", padding: "1rem", backgroundColor: "#ffe6e6" }}>
-                    ❌ Error: {error}
-                </div>
-            )}
-
-            {parsed && (
-                <div style={{ marginBottom: "2rem" }}>
-                    <h2>Parsed Resume</h2>
-                    <div style={{ 
-                        background: "#f4f4f4", 
-                        padding: "1rem", 
-                        borderRadius: "4px",
-                        maxHeight: "500px", 
-                        overflow: "auto", 
-                        fontSize: "0.9rem" 
-                    }}>
-                        <pre>{JSON.stringify(parsed.parsed.structured, null, 2)}</pre>
-                    </div>
-                </div>
-            )}
-
-            {feedback && (
-                <div>
-                    <h2>Feedback {feedback.isMock && "(Mock Response - Add OPENAI_API_KEY for AI feedback)"}</h2>
-                    <div style={{ 
-                        background: "#f0f8ff", 
-                        padding: "1rem", 
-                        borderRadius: "4px",
-                        border: "1px solid #cce5ff" 
-                    }}>
-                        <h3>Summary</h3>
-                        <p>{feedback.feedback.summary}</p>
-                        
-                        <h3>Strengths</h3>
-                        <ul>
-                            {feedback.feedback.strengths.map((strength: string, i: number) => (
-                                <li key={i}>{strength}</li>
-                            ))}
-                        </ul>
-                        
-                        <h3>Areas for Improvement</h3>
-                        <ul>
-                            {feedback.feedback.weaknesses.map((weakness: string, i: number) => (
-                                <li key={i}>{weakness}</li>
-                            ))}
-                        </ul>
-                        
-                        <h3>Suggestions</h3>
-                        <ul>
-                            {feedback.feedback.suggestions.map((suggestion: string, i: number) => (
-                                <li key={i}>{suggestion}</li>
-                            ))}
-                        </ul>
-                    </div>
-                </div>
+                    {activeTab === "feedback" && feedback && <Feedback feedback={feedback.feedback} />}
+                    {activeTab === "questions" && <InterviewQuestions questions={questions} />}
+                    {activeTab === "resume" && parsed && <ParsedResume parsed={parsed?.parsed?.structured} />}
+                </>
             )}
         </div>
     );

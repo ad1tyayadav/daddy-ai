@@ -1,51 +1,15 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { mockFeedback, mockQuestion } from "@/data/mockData/mockData";
 import { InferenceClient } from "@huggingface/inference";
 
-// Initialize the Hugging Face client
 const client = process.env.HF_TOKEN
   ? new InferenceClient(process.env.HF_TOKEN)
   : null;
 
-// Mock responses
-const MOCK_FEEDBACK = {
-  score: 7,
-  tldr: "Solid technical background but lacks quantifiable achievements and specific keywords from the job description.",
-  suggestions: [
-    "Add metrics to quantify achievements (e.g., 'improved performance by 25%')",
-    "Incorporate more keywords from the job description",
-    "Highlight leadership experience more prominently",
-    "Add a projects section to showcase specific work",
-  ],
-  keywords: [
-    "cloud architecture",
-    "Agile methodology",
-    "CI/CD",
-    "containerization",
-  ],
-  exampleBullets: [
-    "Reduced API response time by 40% through optimization techniques",
-    "Led a team of 5 developers to deliver a project 2 weeks ahead of schedule",
-    "Implemented CI/CD pipeline that reduced deployment time by 60%",
-  ],
-};
+const MOCK_FEEDBACK = mockFeedback;
+const MOCK_QUESTIONS = mockQuestion;
 
-const MOCK_QUESTIONS = [
-  {
-    q: "Can you describe your experience with cloud technologies?",
-    answer:
-      "In my previous role at TechCorp, I designed and implemented a cloud infrastructure on AWS that supported over 10,000 daily users. I utilized services like EC2, S3, and RDS to create a scalable architecture that reduced costs by 30% while improving reliability.",
-    tip: "Focus on specific technologies and quantifiable results",
-  },
-  {
-    q: "How do you handle tight deadlines?",
-    answer:
-      "I prioritize tasks based on impact and communicate clearly with stakeholders about timelines. For example, on the X project, we faced a tight deadline but I organized the team into focused squads and we delivered 2 days early.",
-    tip: "Use a specific example to demonstrate your approach",
-  },
-];
-
-/**
- * Call Hugging Face API with chat completion
- */
 async function callHuggingFaceChat(
   prompt: string,
   model: string = "Qwen/Qwen3-Next-80B-A3B-Instruct"
@@ -62,7 +26,7 @@ async function callHuggingFaceChat(
         {
           role: "system",
           content:
-            "You are a helpful career coach that provides constructive feedback on resumes based on job descriptions. Always respond with valid JSON in the specified format.",
+            "You are a helpful career coach that provides constructive feedback on resumes based on job descriptions. Always respond with valid JSON in the specified format. Your response must be valid JSON without any additional text.",
         },
         {
           role: "user",
@@ -70,12 +34,19 @@ async function callHuggingFaceChat(
         },
       ],
       temperature: 0.7,
-      max_tokens: 2000,
+      max_tokens: 4000,
     });
 
     return chatCompletion.choices[0].message.content;
   } catch (error: any) {
     console.error("Hugging Face API error:", error);
+
+    // For specific model overload errors, try a fallback model
+    if (error.message.includes("overload") || error.message.includes("503")) {
+      console.log("Primary model overloaded, trying fallback model...");
+      return callHuggingFaceChat(prompt, "meta-llama/Llama-3.3-70B-Instruct");
+    }
+
     throw new Error(`Hugging Face API error: ${error.message}`);
   }
 }
@@ -85,8 +56,20 @@ async function callHuggingFaceChat(
  */
 function extractJsonFromResponse(responseText: string) {
   try {
-    // First try parsing directly
-    const parsed = JSON.parse(responseText);
+    // Clean the response text first
+    let cleanedText = responseText.trim();
+
+    // Remove any markdown code blocks if present
+    if (cleanedText.startsWith("```json")) {
+      cleanedText = cleanedText
+        .replace(/^```json\s*/, "")
+        .replace(/\s*```$/, "");
+    } else if (cleanedText.startsWith("```")) {
+      cleanedText = cleanedText.replace(/^```\s*/, "").replace(/\s*```$/, "");
+    }
+
+    // Parse the JSON
+    const parsed = JSON.parse(cleanedText);
 
     // If parsed is an array, wrap it into { questions: [...] }
     if (Array.isArray(parsed)) {
@@ -96,15 +79,24 @@ function extractJsonFromResponse(responseText: string) {
     // Otherwise, return the parsed object
     return parsed;
   } catch (e) {
-    console.error("Failed to extract JSON from response:", responseText);
-    // Return fallback mock instead of throwing
+    console.error(
+      "Failed to extract JSON from response. Response length:",
+      responseText.length
+    );
+    console.error("Response preview:", responseText.substring(0, 500) + "...");
+
+    // For feedback responses, return mock feedback instead of mock questions
+    if (
+      responseText.includes("score") ||
+      responseText.includes("suggestions")
+    ) {
+      return MOCK_FEEDBACK;
+    }
+
     return MOCK_QUESTIONS;
   }
 }
 
-/**
- * Generate feedback for a resume based on a job description
- */
 export async function generateFeedback(
   parsedResume: any,
   jobDescription: string
@@ -116,11 +108,10 @@ export async function generateFeedback(
 
   try {
     const prompt = `
-You are a ruthless hiring mentor for mid/senior-level technical roles. Given the parsed resume JSON and the job description, produce:
-1. One-line TL;DR suitability score (1-10) and why.
-2. Actionable resume changes prioritized by impact (bulleted, < 8 items).
-3. Key missing keywords/skills to add, exact phrasing to use.
-4. Top 5 example bullet points (result-quantified) rewritten to match the job.
+You are an extremely critical technical hiring manager with 20+ years of experience at top tech companies. 
+Your task is to provide brutally honest, no-BS feedback on this resume for the specific role described.
+
+IMPORTANT: Do NOT flag or criticize dates on the resume, even if they are before or after the job's stated start date. Focus only on skills, experience, formatting, and relevance. Ignore chronological sequencing unless it affects skill relevance.
 
 RESUME:
 ${JSON.stringify(parsedResume, null, 2)}
@@ -128,30 +119,84 @@ ${JSON.stringify(parsedResume, null, 2)}
 JOB DESCRIPTION:
 ${jobDescription}
 
-### Example Expected Output
+ANALYSIS REQUIREMENTS:
+
+1. HARSH SUITABILITY ASSESSMENT (1-10 scale):
+   - Score with decimal precision (e.g., 6.7/10)
+   - Direct comparison to top candidates you've hired for similar roles
+   - Specific reasons why this candidate would struggle compared to top performers
+
+2. BRUTAL RESUME CRITIQUE:
+   - Identify every weakness, gap, and red flag (except dates)
+   - Point out vague language, unquantified claims, and missing evidence
+   - Highlight any experience that seems exaggerated or insufficient for the role level
+   - Call out missing technologies/methodologies mentioned in the JD
+
+3. ACTIONABLE IMPROVEMENTS (Prioritized by impact):
+   - Specific wording changes (exact before/after examples)
+   - Quantification opportunities with realistic numbers
+   - Structural changes to highlight relevant experience
+   - Skills to emphasize or de-emphasize
+
+4. KEYWORD GAP ANALYSIS:
+   - Missing hard skills from JD with exact terms to add
+   - Missing soft skills/competencies from JD
+   - Overused or weak phrases to eliminate
+
+5. BULLET POINT REWRITES (Top 5 most important):
+   - Transform vague responsibilities into quantified achievements
+   - Apply STAR method (Situation, Task, Action, Result)
+   - Match language and terminology from job description
+
+6. HARD TRUTHS SECTION:
+   - What would make you reject this resume immediately in a pile of 100+ applications
+   - Where this candidate truly stands against the competition
+   - Whether they should even apply for this role level
+
+TONE: Ruthlessly honest, direct, and critical. No sugarcoating. 
+Assume the candidate needs to hear the brutal truth to improve.
+
+### Expected JSON Output Format
 
 {
-  "score": 7,
-  "tldr": "Strong backend engineer with Node.js/React but resume lacks quantified impact.",
+  "score": 6.7,
+  "scoreExplanation": "Detailed explanation of weaknesses leading to this score",
+  "tldr": "Brutally honest one-line assessment",
+  "brutalTruths": [
+    "Hard truth 1 about why they might not get hired",
+    "Hard truth 2 about experience gaps",
+    "Hard truth 3 about competition"
+  ],
+  "redFlags": [
+    "Specific red flag 1",
+    "Specific red flag 2"
+  ],
   "suggestions": [
-    "Add measurable results to each bullet point.",
-    "Mention Kubernetes deployment experience explicitly."
+    {
+      "priority": "Critical/High/Medium",
+      "current": "Current weak phrasing",
+      "improved": "Stronger alternative with quantification"
+    }
   ],
-  "keywords": ["Node.js", "React", "Kubernetes", "GraphQL", "CI/CD"],
+  "missingKeywords": {
+    "hardSkills": ["Specific technology 1", "Specific technology 2"],
+    "softSkills": ["Specific competency 1", "Specific competency 2"]
+  },
   "exampleBullets": [
-    "Reduced API latency by 35% by optimizing Postgres queries and caching layer.",
-    "Led migration to Kubernetes, improving deployment frequency by 50%.",
-    "Built GraphQL API used by 1M+ monthly active users."
+    {
+      "original": "Original weak bullet point",
+      "improved": "Rewritten with quantification and impact",
+      "explanation": "Why this rewrite is more effective"
+    }
   ],
-  "strongPoints": [
-    "Experience with full-stack (Node.js + React).",
-    "Hands-on with databases (Postgres, MongoDB).",
-    "Exposure to CI/CD workflows."
+  "structuralIssues": [
+    "Issue with resume structure 1",
+    "Issue with resume structure 2"
   ]
 }
 `;
 
-    const responseText = await callHuggingFaceChat(prompt);
+    const responseText: string | any = await callHuggingFaceChat(prompt);
     return extractJsonFromResponse(responseText);
   } catch (error) {
     console.error("Error generating feedback with Hugging Face:", error);
@@ -159,24 +204,19 @@ ${jobDescription}
   }
 }
 
-/**
- * Generate interview questions based on a resume and job description
- */
 export async function generateInterviewQuestions(
   parsedResume: any,
   jobDescription: string,
-  count: number = 8
+  count: number = 10
 ) {
-  // Use mock response if no API key
   if (!process.env.HF_TOKEN) {
-    return MOCK_QUESTIONS; // Return the array directly
+    return MOCK_QUESTIONS;
   }
 
   try {
     const prompt = `
-Given the parsed resume JSON and job description, produce ${count} likely interview questions (mix technical and behavioral).
-For each question, provide a 2-4 sentence model answer tailored to the resume and job.
-Also provide a one-line tip for how to answer (style or example to highlight).
+You are a senior technical interviewer with 20+ years of experience at FAANG companies.
+Create challenging, realistic interview questions specifically tailored to this candidate's background and the target role.
 
 RESUME:
 ${JSON.stringify(parsedResume, null, 2)}
@@ -184,17 +224,68 @@ ${JSON.stringify(parsedResume, null, 2)}
 JOB DESCRIPTION:
 ${jobDescription}
 
-IMPORTANT: Respond with ONLY valid JSON in this exact structure:
+INTERVIEW QUESTION REQUIREMENTS:
+
+1. QUESTION MIX:
+   - 40% Technical questions (specific to technologies mentioned in JD and resume)
+   - 30% Behavioral questions (STAR format, based on resume experience)
+   - 20% System design/architecture questions (appropriate for role level)
+   - 10% Culture fit/motivation questions
+
+2. QUESTION DEPTH:
+   - Technical questions should be challenging but fair for the role level
+   - Include follow-up questions that might be asked during the interview
+   - Behavioral questions should probe for specific examples and measurable outcomes
+   - System design questions should be relevant to the company's domain
+
+3. ANSWER GUIDANCE:
+   - Provide model answers that incorporate the candidate's actual experience
+   - Include specific tips on what makes a strong vs weak answer
+   - Highlight red flags interviewers would watch for in responses
+   - Suggest how to quantify achievements even if not in original resume
+
+4. DIFFICULTY GRADING:
+   - Rate each question's difficulty (Easy/Medium/Hard)
+   - Note which questions are likely to be elimination questions
+   - Suggest preparation resources for each topic
+
+5. TAILORING:
+   - Questions must be specifically tailored to both the candidate's background and the JD
+   - Reference specific technologies, projects, or experiences from the resume
+   - Align with the company's industry, size, and mentioned technologies
+
+TONE: Direct, challenging, and practical. Questions should reflect what would actually be asked in a competitive interview.
+
+### Expected JSON Output Format
+
 [
   {
-    "q": "Question text",
-    "answer": "Model answer text",
-    "tip": "Brief tip on how to answer"
+    "type": "technical/behavioral/system-design/cultural",
+    "difficulty": "Easy/Medium/Hard",
+    "question": "The actual interview question",
+    "modelAnswer": "Comprehensive answer that incorporates the candidate's experience and quantifies results",
+    "tips": [
+      "Tip 1 for answering effectively",
+      "Tip 2 on what to emphasize",
+      "What interviewers are really looking for"
+    ],
+    "followUps": [
+      "Potential follow-up question 1",
+      "Potential follow-up question 2"
+    ],
+    "preparationResources": [
+      "Resource 1 to prepare for this question",
+      "Resource 2 for deeper understanding"
+    ],
+    "redFlags": [
+      "Response patterns that would raise concerns",
+      "Common mistakes candidates make"
+    ]
   }
 ]
 `;
 
-    const responseText = await callHuggingFaceChat(prompt);
+    const responseText: string | any = await callHuggingFaceChat(prompt);
     const result = extractJsonFromResponse(responseText);
 
     // Handle both array and object formats
@@ -204,6 +295,6 @@ IMPORTANT: Respond with ONLY valid JSON in this exact structure:
       "Error generating interview questions with Hugging Face:",
       error
     );
-    return MOCK_QUESTIONS; // Return the array directly
+    return MOCK_QUESTIONS;
   }
 }

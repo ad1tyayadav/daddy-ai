@@ -1,7 +1,7 @@
 import pdfParse from "pdf-parse";
 import mammoth from "mammoth";
 
-import type { ParsedResume } from "../types";
+import type { ParsedResume } from "../types/types";
 
 export async function extractText(
   buffer: Buffer,

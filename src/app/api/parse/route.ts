@@ -137,7 +137,15 @@ function parseResumeText(text: string) {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    let body;
+    try {
+      body = await req.json();
+    } catch (parseError) {
+      return NextResponse.json(
+        { success: false, error: `Invalid JSON in request body  Error ${parseError}` },
+        { status: 400 }
+      );
+    }
     const { fileId } = body;
 
     if (!fileId) {

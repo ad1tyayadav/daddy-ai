@@ -1,9 +1,9 @@
-import Image from "next/image";
+import { HeroSectionOne } from "@/components/HeroSection";
 
 export default function Home() {
   return (
-   <div>
-    Lelo Pudinaaaaaaa
-   </div>
+    <div>
+      <HeroSectionOne />
+    </div>
   );
 }

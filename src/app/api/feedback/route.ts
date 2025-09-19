@@ -1,35 +1,38 @@
 import { NextResponse } from "next/server";
 import { generateFeedback } from "@/lib/hugingface";
-// Mock feedback to use if API fails
-const MOCK_FEEDBACK = {
-  score: 7,
-  tldr: "Good match, but missing cloud CI/CD keywords",
-  suggestions: [
-    "Add CI/CD experience",
-    "Highlight AWS projects",
-    "Include quantified achievements"
-  ],
-  keywords: ["CI/CD", "AWS", "Cloud"],
-  exampleBullets: [
-    "Implemented CI/CD pipelines using GitHub Actions",
-    "Managed cloud deployment on AWS",
-    "Optimized application performance resulting in 20% faster load times"
-  ],
-  isMock: true
-};
+import { mockFeedback } from "@/data/mockData/mockData";
 
-async function generateFeedbackWithRetry(parsedResume: any, jobDescription: string, retries = 3) {
+export interface Feedback {
+  score: number;
+  tldr: string;
+  suggestions: string[];
+  keywords: string[];
+  exampleBullets: string[];
+  isMock: boolean;
+}
+
+export interface ParsedResume {
+  rawText?: string;
+  [key: string]: unknown;
+}
+
+const MOCK_FEEDBACK = mockFeedback;
+
+async function generateFeedbackWithRetry(
+  parsedResume: ParsedResume,
+  jobDescription: string,
+  retries = 3
+): Promise<Feedback> {
   for (let i = 0; i < retries; i++) {
     try {
       return await generateFeedback(parsedResume, jobDescription);
-    } catch (err: any) {
-      // Retry only on 503 (model overloaded)
-      if (err?.message.includes("503") && i < retries - 1) {
-        console.warn(`Gemini overloaded. Retrying attempt ${i + 1}...`);
-        await new Promise(res => setTimeout(res, 2000 * (i + 1))); // 2s, 4s, 6s
+    } catch (err) {
+      if (err instanceof Error && err.message.includes("503") && i < retries - 1) {
+        console.warn(`⚠️ Gemini overloaded. Retrying attempt ${i + 1}...`);
+        await new Promise((res) => setTimeout(res, 2000 * (i + 1))); // 2s, 4s, 6s
         continue;
       }
-      console.error("Error generating feedback:", err);
+      console.error("❌ Error generating feedback:", err);
       throw err;
     }
   }
@@ -38,24 +41,41 @@ async function generateFeedbackWithRetry(parsedResume: any, jobDescription: stri
 
 export async function POST(req: Request) {
   try {
-    const { parsedResume, jobDescription } = await req.json();
+    const { parsedResume, jobDescription } = (await req.json()) as {
+      parsedResume: ParsedResume;
+      jobDescription: string;
+    };
 
     if (!parsedResume || !jobDescription) {
-      return NextResponse.json({ success: false, error: "Missing parsedResume or jobDescription" }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: "Missing parsedResume or jobDescription" },
+        { status: 400 }
+      );
     }
 
-    let feedback; 
+    const limitedResume: ParsedResume = {
+      ...parsedResume,
+      rawText: parsedResume.rawText
+        ? parsedResume.rawText.substring(0, 5000)
+        : "",
+    };
+
+    let feedback: Feedback;
     try {
-      feedback = await generateFeedbackWithRetry(parsedResume, jobDescription, 3);
+      feedback = await generateFeedbackWithRetry(limitedResume, jobDescription);
       feedback.isMock = false;
     } catch (err) {
-      console.warn("Using mock feedback due to Gemini API error.");
-      feedback = MOCK_FEEDBACK;
+      console.warn("⚠️ Using mock feedback due to API error:", err);
+      feedback = { ...MOCK_FEEDBACK, isMock: true };
     }
 
     return NextResponse.json({ success: true, feedback });
-  } catch (err: any) {
-    console.error("Feedback route error:", err);
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  } catch (err) {
+    console.error("❌ Feedback route error:", err);
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return NextResponse.json(
+      { success: false, error: message },
+      { status: 500 }
+    );
   }
 }

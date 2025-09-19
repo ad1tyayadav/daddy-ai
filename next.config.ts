@@ -1,10 +1,8 @@
-/** @type {import('next').NextConfig} */
+/**
+ * @type {import('next').NextConfig}
+ */
 const nextConfig = {
-  api: {
-    bodyParser: {
-      sizeLimit: '10mb', // Increase if needed
-    },
-  },
+  /* config options here */
 }
-
+ 
 module.exports = nextConfig

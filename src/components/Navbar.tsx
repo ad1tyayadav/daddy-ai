@@ -17,7 +17,7 @@ function Navbar() {
       {/* Right side - GitHub Star Button with Magnetic Effect */}
       <MagneticButton distance={0.2}>
         <Link
-          href="https://github.com/ad1tyayadav/DaddyAI"
+          href="https://github.com/ad1tyayadav/daddy-ai"
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-2 rounded-lg bg-black px-4 py-2 text-sm font-medium text-white transition-all duration-300 hover:bg-gray-800 md:px-6 md:py-2 dark:bg-white dark:text-black dark:hover:bg-gray-200"

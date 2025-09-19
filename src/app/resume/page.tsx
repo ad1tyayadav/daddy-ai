@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// app/resume/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -54,12 +53,13 @@ export default function ResumePage() {
 
   // Load data from localStorage on component mount
   useEffect(() => {
+    if (typeof window === "undefined") return; // ⬅ SSR guard
+
     const savedData = localStorage.getItem("resumeAnalysisData");
     if (savedData) {
       try {
         const data: StoredData = JSON.parse(savedData);
 
-        // Check if data is less than 24 hours old
         const isDataFresh = Date.now() - data.timestamp < 24 * 60 * 60 * 1000;
 
         if (isDataFresh) {
@@ -68,7 +68,6 @@ export default function ResumePage() {
           setQuestions(data.questions);
           setJobDescription(data.jobDescription);
         } else {
-          // Clear old data
           localStorage.removeItem("resumeAnalysisData");
         }
       } catch (e) {

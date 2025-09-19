@@ -84,22 +84,25 @@ export function HeroSectionOne() {
             </button>
 
             <h2 className="text-xl font-bold text-center mb-4">
-              😂 You weren’t supposed to click that!
+
             </h2>
 
             {/* Meme */}
-            <Image
-              src="/meme.png"
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="https://c.tenor.com/8FnHltWQJkYAAAAd/tenor.gif"
               alt="Funny Meme"
               className="w-full rounded-md mb-4"
             />
 
             {/* QR Code */}
-            <div className="flex justify-center">
+            <div className="flex justify-center rounded">
               <Image
-                src="/qrcode.png"
+                src="/images/qr.png"
                 alt="Pay Me QR Code"
-                className="w-40 h-40"
+                width={400}
+                height={200}
+                className="w-40 h-60 rounded object-contain"
               />
             </div>
 

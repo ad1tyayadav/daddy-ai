@@ -7,7 +7,7 @@ import React from "react";
 import { FloatingDock } from "./ui/floating-dock";
 
 const items = [
-    { title: "Twitter", icon: <IconBrandX />, href: "https://github.com/ad1tyayadav" },
+    { title: "Twitter", icon: <IconBrandX />, href: "https://x.com/_its_Adi" },
     {
         title: "GitHub",
         icon: <IconBrandGithub />,

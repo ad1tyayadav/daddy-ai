@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
       questions: questions || [], // Ensure we always return an array
       isMock: !process.env.HF_TOKEN, // Fixed to check HF_TOKEN instead of OPENAI_API_KEY
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Interview questions error:", err);
 
     // Return mock data if there's an error

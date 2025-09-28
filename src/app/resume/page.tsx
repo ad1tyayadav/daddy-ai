@@ -12,16 +12,27 @@ import { motion } from "framer-motion";
 import UpgradePopup from "@/components/PopUp";
 
 const LOADING_STATES = [
-  { text: "Uploading your resume..." },
-  { text: "Analyzing content structure..." },
-  { text: "Checking skills alignment..." },
-  { text: "Evaluating experience section..." },
-  { text: "Comparing with job requirements..." },
-  { text: "Identifying strengths..." },
-  { text: "Finding improvement areas..." },
-  { text: "Generating personalized feedback..." },
+  { text: "Uploading your masterpiece...." },
+  { text: "Scanning for typos, typos everywhere..." },
+  { text: "Parsing that ‘experience’ section..." },
+  { text: "Bro! WTF is this?..." },
+  { text: "Checking if skills are real..." },
+  { text: "Evaluating achievements..." },
+  { text: "Spotting cringe-worthy hobbies..." },
+  { text: "Detecting buzzwords nobody uses...lol" },
+  { text: "Analyzing leadership claims..." },
+  { text: "Checking grammar...." },
+  { text: "Holy shit, brace yourself!..." },
+  { text: "Verifying LinkedIn link..." },
+  { text: "skills != job requirements..." },
+  { text: "Finding strengths....404 not found :)" },
+  { text: "Listing weaknesses...." },
+  { text: "Generating witty feedback..." },
   { text: "Creating interview questions..." },
-  { text: "Finalizing your report..." },
+  { text: "Making suggestions you’ll probably ignore..." },
+  { text: "Almost done… try not to cry..." },
+  { text: "Final check… alright, you survived… barely!" },
+  { text: "Preparing your report card..." }
 ];
 
 interface StoredData {

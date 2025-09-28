@@ -12,14 +12,14 @@ export default function Tabs({
   onChange: (id: string) => void;
 }) {
   return (
-    <div className="flex w-full rounded-xl border border-neutral-200/40 bg-white/60 p-1 backdrop-blur-md dark:border-neutral-700/60 dark:bg-black/60">
+    <div className="flex text w-full rounded-xl border border-neutral-200/40 bg-white/60 p-1 backdrop-blur-md dark:border-neutral-700/60 dark:bg-black/60">
       {tabs.map((tab) => {
         const isActive = active === tab.id;
         return (
           <button
             key={tab.id}
             onClick={() => onChange(tab.id)}
-            className={`relative flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors
+            className={`relative flex-1 rounded sm:px-4 py-2 text-sm font-medium transition-colors
               ${isActive
                 ? "text-blue-600 dark:text-blue-400"
                 : "text-neutral-600 hover:text-blue-500 dark:text-neutral-400 dark:hover:text-blue-400"

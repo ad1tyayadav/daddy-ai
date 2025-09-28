@@ -9,28 +9,19 @@ import InterviewQuestions from "@/components/Interview";
 import PDFExport from "@/components/PdfExport";
 import { MultiStepLoader } from "@/components/ui/multi-step-loader";
 import { motion } from "framer-motion";
+import UpgradePopup from "@/components/PopUp";
 
 const LOADING_STATES = [
-  { text: "Uploading your masterpiece...." },
-  { text: "Scanning for typos, typos everywhere..." },
-  { text: "Parsing that ‘experience’ section..." },
-  { text: "Bro! WTF is this?..." },
-  { text: "Checking if skills are real..." },
-  { text: "Evaluating achievements..." },
-  { text: "Spotting cringe-worthy hobbies..." },
-  { text: "Detecting buzzwords nobody uses...lol" },
-  { text: "Analyzing leadership claims..." },
-  { text: "Checking grammar...." },
-  { text: "Holy shit, brace yourself!..." },
-  { text: "Verifying LinkedIn link..." },
-  { text: "skills != job requirements..." },
-  { text: "Finding strengths....404 not found :)" },
-  { text: "Listing weaknesses....]" },
-  { text: "Generating witty feedback..." },
+  { text: "Uploading your resume..." },
+  { text: "Analyzing content structure..." },
+  { text: "Checking skills alignment..." },
+  { text: "Evaluating experience section..." },
+  { text: "Comparing with job requirements..." },
+  { text: "Identifying strengths..." },
+  { text: "Finding improvement areas..." },
+  { text: "Generating personalized feedback..." },
   { text: "Creating interview questions..." },
-  { text: "Making suggestions you’ll probably ignore..." },
-  { text: "Almost done… try not to cry..." },
-  { text: "Final check… alright, you survived… barely!" },
+  { text: "Finalizing your report..." },
 ];
 
 interface StoredData {
@@ -41,6 +32,8 @@ interface StoredData {
   timestamp: number;
 }
 
+const DATA_FRESHNESS_THRESHOLD = 12 * 60 * 60 * 1000;
+
 function ResumePage() {
   const [parsed, setParsed] = useState<any>(null);
   const [feedback, setFeedback] = useState<any>(null);
@@ -50,8 +43,10 @@ function ResumePage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [hasSavedData, setHasSavedData] = useState(false);
+  const [showUpgradePopup, setShowUpgradePopup] = useState(false);
+  const [limitType, setLimitType] = useState<"feedback" | "questions" | "both">("both");
 
-  // Load data from localStorage on mount
+
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -59,25 +54,20 @@ function ResumePage() {
     if (savedData) {
       try {
         const data: StoredData = JSON.parse(savedData);
-        const isDataFresh = Date.now() - data.timestamp < 24 * 60 * 60 * 1000;
-
+        const isDataFresh = Date.now() - data.timestamp < DATA_FRESHNESS_THRESHOLD;
         if (isDataFresh) {
           setParsed(data.parsed);
           setFeedback(data.feedback);
-          setQuestions(data.questions);
-          setJobDescription(data.jobDescription);
+          setQuestions(data.questions || []);
+          setJobDescription(data.jobDescription || "");
           setHasSavedData(true);
-        } else {
-          localStorage.removeItem("resumeAnalysisData");
-        }
-      } catch (e) {
-        console.error("Error parsing saved data:", e);
+        } else localStorage.removeItem("resumeAnalysisData");
+      } catch {
         localStorage.removeItem("resumeAnalysisData");
       }
     }
   }, []);
 
-  // Save data to localStorage whenever it changes
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -89,7 +79,6 @@ function ResumePage() {
         jobDescription,
         timestamp: Date.now(),
       };
-
       localStorage.setItem("resumeAnalysisData", JSON.stringify(dataToStore));
       setHasSavedData(true);
     }
@@ -99,27 +88,17 @@ function ResumePage() {
     setLoading(true);
     setError(null);
     setJobDescription(jobDesc);
-    setParsed(null);
-    setFeedback(null);
-    setQuestions([]);
-    setHasSavedData(false);
-
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("resumeAnalysisData");
-    }
 
     try {
       const formData = new FormData();
       formData.append("file", file);
 
-      const uploadRes = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-      if (!uploadRes.ok) throw new Error("File upload failed");
-
+      // Upload resume
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+      if (!uploadRes.ok) throw new Error("Upload failed");
       const { fileId } = await uploadRes.json();
 
+      // Parse resume
       const parsedRes = await fetch("/api/parse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -129,25 +108,49 @@ function ResumePage() {
       const parsedData = await parsedRes.json();
       setParsed(parsedData);
 
-      const feedbackRes = await fetch("/api/feedback", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ parsedResume: parsedData, jobDescription: jobDesc }),
-      });
-      if (!feedbackRes.ok) throw new Error("Feedback generation failed");
-      const feedbackData = await feedbackRes.json();
-      setFeedback(feedbackData);
+      // Fetch feedback + interview in parallel
+      const [feedbackRes, questionRes] = await Promise.all([
+        fetch("/api/feedback", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ parsedResume: parsedData, jobDescription: jobDesc }),
+        }),
+        fetch("/api/interview", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ parsedResume: parsedData, jobDescription: jobDesc }),
+        }),
+      ]);
 
-      const questionRes = await fetch("/api/interview", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ parsedResume: parsedData, jobDescription: jobDesc }),
-      });
-      if (!questionRes.ok) throw new Error("Question generation failed");
+      const feedbackData = await feedbackRes.json();
       const questionData = await questionRes.json();
-      setQuestions(questionData.questions || []);
+
+      // ---- Handle UpgradePopup ----
+      if (feedbackData.feedback.isMock && questionData.isMock) {
+        setLimitType("both");
+        setShowUpgradePopup(true);
+      } else if (feedbackData.feedback.isMock) {
+        setLimitType("feedback");
+        setShowUpgradePopup(true);
+      } else if (questionData.isMock) {
+        setLimitType("questions");
+        setShowUpgradePopup(true);
+      }
+
+      // ---- Only set non-mock results to state ----
+      if (!feedbackData.feedback.isMock) {
+        setFeedback(feedbackData.feedback);
+      } else {
+        setFeedback(null);
+      }
+
+      if (!questionData.isMock) {
+        setQuestions(questionData.questions || []);
+      } else {
+        setQuestions([]);
+      }
+
     } catch (err: any) {
-      console.error(err);
       setError(err.message || "Something went wrong.");
     } finally {
       setLoading(false);
@@ -160,82 +163,57 @@ function ResumePage() {
     setQuestions([]);
     setJobDescription("");
     setHasSavedData(false);
-
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("resumeAnalysisData");
-    }
+    setActiveTab("feedback");
+    localStorage.removeItem("resumeAnalysisData");
   };
 
+  const hasResults = feedback || questions.length > 0;
+
   return (
-    <div className="min-h-screen py-8 px-4">
+    <div className="min-h-screen py-8 px-4 text-gray-100">
       <div className="max-w-6xl mx-auto">
-        <UploadForm onSubmit={handleSubmit} initialJobDescription={jobDescription} />
+        <UploadForm onSubmit={handleSubmit} initialJobDescription={jobDescription} disabled={loading} />
 
         {loading && (
-          <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50">
-            <MultiStepLoader
-              loadingStates={LOADING_STATES}
-              loading={loading}
-              duration={2000}
-            />
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <MultiStepLoader loadingStates={LOADING_STATES} loading={loading} duration={2000} />
           </div>
         )}
 
         {error && (
-          <div className="mt-8 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-xl text-red-700 dark:text-red-300">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-6 p-4 bg-red-800 border border-red-700 rounded-lg text-red-200"
+          >
             <div className="flex items-center">
-              <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                <path
-                  fillRule="evenodd"
-                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              <strong>Error:</strong> {error}
+              <span>{error}</span>
             </div>
-          </div>
+            <button onClick={() => setError(null)} className="mt-2 text-sm text-red-300 underline">
+              Dismiss
+            </button>
+          </motion.div>
         )}
 
-        {(feedback || questions.length > 0) && (
+        {hasResults && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="mt-8 bg-white/80 dark:bg-neutral-800/80 backdrop-blur-md rounded-2xl shadow-xl border border-neutral-200/60 dark:border-neutral-700/50 p-6"
+            className="mt-8 border border-gray-700 rounded-xl shadow-sm p-6"
           >
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
               <div>
-                <h2 className="text-2xl font-bold text-neutral-800 dark:text-neutral-100 mb-2">
-                  Analysis Results
-                </h2>
-                <p className="text-neutral-600 dark:text-neutral-400">
-                  Based on your resume and the job description
-                </p>
+                <h2 className="text-xl sm:text-2xl font-bold mb-2">Analysis Results</h2>
+                <p className="text-gray-400">Based on your resume and the job description</p>
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-2">
-                <PDFExport
-                  feedback={feedback?.feedback}
-                  questions={questions}
-                  parsedResume={parsed}
-                />
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                <PDFExport feedback={feedback?.feedback} questions={questions} parsedResume={parsed} />
                 <button
                   onClick={clearSavedData}
-                  className="flex items-center px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                  className="flex items-center justify-center px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600 transition-colors"
                 >
-                  <svg
-                    className="w-5 h-5 mr-2"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                    />
-                  </svg>
                   Clear Results
                 </button>
               </div>
@@ -251,38 +229,28 @@ function ResumePage() {
             />
 
             <div className="mt-6">
-              {activeTab === "feedback" && feedback && (
-                <Feedback feedback={feedback.feedback} />
-              )}
-              {activeTab === "questions" && (
-                <InterviewQuestions questions={questions} />
-              )}
+              {activeTab === "feedback" && feedback && <Feedback feedback={feedback} />}
+              {activeTab === "questions" && <InterviewQuestions questions={questions} />}
             </div>
           </motion.div>
         )}
 
-        {hasSavedData && !loading && (
-          <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-lg text-sm text-blue-700 dark:text-blue-300">
-            <div className="flex items-center">
-              <svg
-                className="w-4 h-4 mr-2"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              <span>
-                Your previous analysis has been restored. You can continue where
-                you left off.
-              </span>
-            </div>
-          </div>
+        {!hasResults && hasSavedData && !loading && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="mt-6 p-4 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200"
+          >
+            Saved analysis detected. You can continue where you left off.
+          </motion.div>
         )}
       </div>
+      <UpgradePopup
+        isOpen={showUpgradePopup}
+        onClose={() => setShowUpgradePopup(false)}
+        limitType={limitType}
+      />
+
     </div>
   );
 }

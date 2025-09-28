@@ -11,6 +11,7 @@ export default function UploadForm({
 }: {
   onSubmit: (file: File, jobDescription: string) => Promise<void>;
   initialJobDescription?: string;
+  disabled?: boolean; 
 }) {
   const [file, setFile] = useState<File | null>(null);
   const [jobDescription, setJobDescription] = useState(initialJobDescription);
@@ -46,7 +47,7 @@ export default function UploadForm({
       transition={{ duration: 0.4 }}
       className="relative z-10 mx-auto mt-6 w-full max-w-3xl"
     >
-      <div className="rounded-2xl p-8 shadow-xl border border-neutral-200/60 dark:border-neutral-700/50">
+      <div className="rounded-2xl sm:p-8 shadow-xl border border-neutral-200/60 dark:border-neutral-700/50">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-neutral-800 dark:text-neutral-100 mb-2">
             Resume Analysis
@@ -112,7 +113,7 @@ export default function UploadForm({
               scale: !(!file || !jobDescription.trim() || isLoading) ? 1.02 : 1,
             }}
             whileTap={{ scale: 0.98 }}
-            className={`w-full rounded-xl px-6 py-4 font-semibold text-lg transition-all duration-300 flex items-center justify-center
+            className={`w-full rounded-xl sm:px-6 py-4 font-semibold text-lg transition-all duration-300 flex items-center justify-center
               ${!file || !jobDescription.trim() || isLoading
                 ? "cursor-not-allowed bg-neutral-200 text-neutral-500 dark:bg-neutral-700 dark:text-neutral-400"
                 : "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg hover:shadow-xl hover:from-blue-500 hover:to-indigo-500 dark:from-blue-500 dark:to-indigo-500"

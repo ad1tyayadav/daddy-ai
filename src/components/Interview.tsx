@@ -1,7 +1,18 @@
-// components/Interview.tsx
 "use client";
 
 import { useState } from "react";
+import { 
+  ChevronDown, 
+  Monitor, 
+  Users, 
+  BarChart3, 
+  Building, 
+  HelpCircle,
+  CheckCircle,
+  ArrowRight,
+  BookOpen,
+  AlertTriangle
+} from "lucide-react";
 
 interface InterviewQuestion {
   type: string;
@@ -43,190 +54,226 @@ export default function InterviewQuestions({ questions }: InterviewQuestionsProp
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty.toLowerCase()) {
       case 'easy':
-        return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
+        return 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20';
       case 'medium':
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300';
+        return 'bg-yellow-500/10 text-yellow-300 border-yellow-500/20';
       case 'hard':
-        return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300';
+        return 'bg-red-500/10 text-red-300 border-red-500/20';
       default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300';
+        return 'bg-gray-500/10 text-gray-300 border-gray-500/20';
     }
   };
 
   const getTypeIcon = (type: string) => {
     switch (type.toLowerCase()) {
       case 'technical':
-        return '💻';
+        return <Monitor className="w-4 h-4" />;
       case 'behavioral':
-        return '👥';
+        return <Users className="w-4 h-4" />;
       case 'system-design':
-        return '📊';
+        return <BarChart3 className="w-4 h-4" />;
       case 'cultural':
-        return '🏢';
+        return <Building className="w-4 h-4" />;
       default:
-        return '❓';
+        return <HelpCircle className="w-4 h-4" />;
+    }
+  };
+
+  const getTypeColor = (type: string) => {
+    switch (type.toLowerCase()) {
+      case 'technical':
+        return 'text-blue-400';
+      case 'behavioral':
+        return 'text-purple-400';
+      case 'system-design':
+        return 'text-green-400';
+      case 'cultural':
+        return 'text-orange-400';
+      default:
+        return 'text-gray-400';
     }
   };
 
   return (
-    <div className="rounded-xl border border-neutral-200 bg-white/80 p-6 shadow-lg backdrop-blur-md dark:border-neutral-800 dark:bg-neutral-900/80 mt-8">
-      {/* Header with controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-neutral-800 dark:text-neutral-100 mb-4 sm:mb-0">
-          Interview Preparation
-          <span className="ml-2 text-sm font-normal text-neutral-500 dark:text-neutral-400">
-            ({questions.length} questions)
-          </span>
-        </h2>
-        <div className="flex space-x-2">
-          <button
-            onClick={expandAll}
-            className="px-3 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-md"
-          >
-            Expand All
-          </button>
-          <button
-            onClick={collapseAll}
-            className="px-3 py-1 text-xs font-medium text-neutral-600 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-300 border border-neutral-200 dark:border-neutral-800 rounded-md"
-          >
-            Collapse All
-          </button>
-        </div>
-      </div>
-
-      {/* Questions list */}
-      <div className="space-y-4">
-        {questions.map((q, index) => {
-          const isExpanded = expandedQuestions.includes(index);
-          
-          return (
-            <div key={index} className="border border-neutral-200 dark:border-neutral-700 rounded-lg overflow-hidden">
-              {/* Question header - clickable to expand/collapse */}
-              <button
-                onClick={() => toggleQuestion(index)}
-                className="w-full p-4 bg-neutral-50 dark:bg-neutral-800 flex items-start justify-between text-left"
-              >
-                <div className="flex-1">
-                  <div className="flex items-center mb-2">
-                    <span className="mr-2 text-lg">{getTypeIcon(q.type)}</span>
-                    <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400 capitalize">
-                      {q.type}
-                    </span>
-                    <span className={`ml-3 text-sm font-medium px-2 py-1 rounded-full ${getDifficultyColor(q.difficulty)}`}>
-                      {q.difficulty}
-                    </span>
-                  </div>
-                  <h3 className="text-lg font-semibold text-neutral-800 dark:text-neutral-200">
-                    {q.question}
-                  </h3>
-                </div>
-                <svg
-                  className={`w-5 h-5 text-neutral-500 flex-shrink-0 transform transition-transform ${isExpanded ? "rotate-180" : ""}`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-
-              {/* Expanded content */}
-              {isExpanded && (
-                <div className="p-4 bg-white dark:bg-neutral-900 space-y-5">
-                  {/* Model Answer */}
-                  <div>
-                    <h4 className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2 flex items-center">
-                      <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
-                      Model Answer
-                    </h4>
-                    <div className="text-sm text-neutral-700 dark:text-neutral-300 bg-blue-50 dark:bg-blue-900/20 p-4 rounded-md border border-blue-100 dark:border-blue-800/30">
-                      {q.modelAnswer}
-                    </div>
-                  </div>
-
-                  {/* Tips */}
-                  {q.tips && q.tips.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2 flex items-center">
-                        <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-                        Answering Tips
-                      </h4>
-                      <ul className="space-y-2">
-                        {q.tips.map((tip, tipIndex) => (
-                          <li key={tipIndex} className="flex items-start">
-                            <span className="flex-shrink-0 w-5 h-5 mt-0.5 mr-2 text-green-500">✓</span>
-                            <span className="text-sm text-neutral-700 dark:text-neutral-300">{tip}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Follow-up Questions */}
-                  {q.followUps && q.followUps.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2 flex items-center">
-                        <span className="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
-                        Potential Follow-ups
-                      </h4>
-                      <ul className="space-y-2">
-                        {q.followUps.map((followUp, fuIndex) => (
-                          <li key={fuIndex} className="flex items-start">
-                            <span className="flex-shrink-0 w-5 h-5 mt-0.5 mr-2 text-purple-500">↳</span>
-                            <span className="text-sm text-neutral-700 dark:text-neutral-300">{followUp}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Preparation Resources */}
-                  {q.preparationResources && q.preparationResources.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2 flex items-center">
-                        <span className="w-2 h-2 bg-amber-500 rounded-full mr-2"></span>
-                        Preparation Resources
-                      </h4>
-                      <ul className="space-y-2">
-                        {q.preparationResources.map((resource, resIndex) => (
-                          <li key={resIndex} className="flex items-start">
-                            <span className="flex-shrink-0 w-5 h-5 mt-0.5 mr-2 text-amber-500">📚</span>
-                            <span className="text-sm text-neutral-700 dark:text-neutral-300">{resource}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Red Flags */}
-                  {q.redFlags && q.redFlags.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-medium text-red-600 dark:text-red-400 mb-2 flex items-center">
-                        <span className="w-2 h-2 bg-red-500 rounded-full mr-2"></span>
-                        Response Red Flags
-                      </h4>
-                      <ul className="space-y-2">
-                        {q.redFlags.map((flag, flagIndex) => (
-                          <li key={flagIndex} className="flex items-start">
-                            <span className="flex-shrink-0 w-5 h-5 mt-0.5 mr-2 text-red-500">⚠️</span>
-                            <span className="text-sm text-red-700 dark:text-red-300">{flag}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
+    <div className="min-h-screen sm:p-6 lg:p-8">
+      <div className="mx-auto space-y-8">
+        {/* Header */}
+        <div className="text-center space-y-6">
+          <div className="space-y-3">
+            <div className="text-xl sm:text-5xl font-bold text-white">
+              🎯
             </div>
-          );
-        })}
-      </div>
+            <h1 className="text-xl sm:text-2xl font-semibold text-white">Interview Preparation</h1>
+            <p className="text-gray-400 text-sm sm:text-base">
+              {questions.length} curated questions to ace your interview
+            </p>
+          </div>
+          
+          {/* Controls */}
+          <div className="flex justify-center space-x-3">
+            <button
+              onClick={expandAll}
+              className="px-4 py-2 text-sm font-medium text-blue-300 hover:text-blue-200 bg-blue-500/10 border border-blue-500/20 rounded-lg hover:bg-blue-500/20 transition-all duration-200"
+            >
+              Expand All
+            </button>
+            <button
+              onClick={collapseAll}
+              className="px-4 py-2 text-sm font-medium text-gray-300 hover:text-white bg-gray-500/10 border border-gray-500/20 rounded-lg hover:bg-gray-500/20 transition-all duration-200"
+            >
+              Collapse All
+            </button>
+          </div>
+        </div>
 
-      {/* Footer note */}
-      <div className="mt-6 p-4 bg-neutral-50 dark:bg-neutral-800/50 rounded-lg">
-        <p className="text-sm text-neutral-600 dark:text-neutral-400 text-center">
-          💡 Practice answering these questions aloud to improve your interview performance
-        </p>
+        {/* Questions */}
+        <div className="space-y-4 sm:space-y-6">
+          {questions.map((q, index) => {
+            const isExpanded = expandedQuestions.includes(index);
+            
+            return (
+              <div key={index} className="bg-gray-800/40 border border-gray-700/50 rounded-xl overflow-hidden backdrop-blur-sm">
+                {/* Question Header */}
+                <button
+                  onClick={() => toggleQuestion(index)}
+                  className="w-full p-4 sm:p-6 hover:bg-gray-700/30 transition-all duration-200"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 text-left">
+                      {/* Type and Difficulty */}
+                      <div className="flex items-center space-x-3 mb-3">
+                        <div className={`flex items-center space-x-2 ${getTypeColor(q.type)}`}>
+                          {getTypeIcon(q.type)}
+                          <span className="text-sm font-medium capitalize">
+                            {q.type}
+                          </span>
+                        </div>
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getDifficultyColor(q.difficulty)}`}>
+                          {q.difficulty}
+                        </span>
+                      </div>
+                      
+                      {/* Question */}
+                      <h3 className="text-sm sm:text-lg font-semibold text-white leading-relaxed pr-4">
+                        {q.question}
+                      </h3>
+                    </div>
+                    
+                    <ChevronDown
+                      className={`w-5 h-5 text-gray-400 flex-shrink-0 transition-transform duration-200 ${
+                        isExpanded ? "rotate-180" : ""
+                      }`}
+                    />
+                  </div>
+                </button>
+
+                {/* Expanded Content */}
+                {isExpanded && (
+                  <div className="px-4 sm:px-6 pb-4 sm:pb-6 border-t border-gray-700/50">
+                    <div className="space-y-6 mt-4">
+                      {/* Model Answer */}
+                      <div>
+                        <div className="flex items-center space-x-2 mb-3">
+                          <CheckCircle className="w-4 h-4 text-blue-400" />
+                          <h4 className="text-sm font-semibold text-blue-300">Model Answer</h4>
+                        </div>
+                        <div className="bg-blue-500/5 border border-blue-500/20 rounded-lg p-4">
+                          <p className="text-gray-300 text-sm sm:text-base leading-relaxed">
+                            {q.modelAnswer}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Tips */}
+                      {q.tips && q.tips.length > 0 && (
+                        <div>
+                          <div className="flex items-center space-x-2 mb-3">
+                            <CheckCircle className="w-4 h-4 text-emerald-400" />
+                            <h4 className="text-sm font-semibold text-emerald-300">Answering Tips</h4>
+                          </div>
+                          <div className="space-y-2">
+                            {q.tips.map((tip, tipIndex) => (
+                              <div key={tipIndex} className="flex items-start space-x-3">
+                                <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full mt-2 flex-shrink-0"></div>
+                                <p className="text-gray-300 text-sm leading-relaxed">{tip}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Follow-ups */}
+                      {q.followUps && q.followUps.length > 0 && (
+                        <div>
+                          <div className="flex items-center space-x-2 mb-3">
+                            <ArrowRight className="w-4 h-4 text-purple-400" />
+                            <h4 className="text-sm font-semibold text-purple-300">Potential Follow-ups</h4>
+                          </div>
+                          <div className="space-y-2">
+                            {q.followUps.map((followUp, fuIndex) => (
+                              <div key={fuIndex} className="flex items-start space-x-3">
+                                <ArrowRight className="w-3 h-3 text-purple-400 mt-1 flex-shrink-0" />
+                                <p className="text-gray-300 text-sm leading-relaxed">{followUp}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Preparation Resources */}
+                      {q.preparationResources && q.preparationResources.length > 0 && (
+                        <div>
+                          <div className="flex items-center space-x-2 mb-3">
+                            <BookOpen className="w-4 h-4 text-amber-400" />
+                            <h4 className="text-sm font-semibold text-amber-300">Preparation Resources</h4>
+                          </div>
+                          <div className="space-y-2">
+                            {q.preparationResources.map((resource, resIndex) => (
+                              <div key={resIndex} className="flex items-start space-x-3">
+                                <div className="w-1.5 h-1.5 bg-amber-400 rounded-full mt-2 flex-shrink-0"></div>
+                                <p className="text-gray-300 text-sm leading-relaxed">{resource}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Red Flags */}
+                      {q.redFlags && q.redFlags.length > 0 && (
+                        <div>
+                          <div className="flex items-center space-x-2 mb-3">
+                            <AlertTriangle className="w-4 h-4 text-red-400" />
+                            <h4 className="text-sm font-semibold text-red-300">Response Red Flags</h4>
+                          </div>
+                          <div className="bg-red-500/5 border border-red-500/20 rounded-lg p-4">
+                            <div className="space-y-2">
+                              {q.redFlags.map((flag, flagIndex) => (
+                                <div key={flagIndex} className="flex items-start space-x-3">
+                                  <AlertTriangle className="w-3 h-3 text-red-400 mt-1 flex-shrink-0" />
+                                  <p className="text-red-300 text-sm leading-relaxed">{flag}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Footer Tip */}
+        <div className="text-center">
+          <div className="inline-flex items-center space-x-2 bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-xl px-6 py-4">
+            <span className="text-2xl">💡</span>
+            <p className="text-gray-300 text-sm">
+              Practice answering these questions aloud to improve your interview performance
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );

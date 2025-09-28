@@ -7,8 +7,43 @@ const client = process.env.HF_TOKEN
   ? new InferenceClient(process.env.HF_TOKEN)
   : null;
 
-const MOCK_FEEDBACK = mockFeedback;
-const MOCK_QUESTIONS = mockQuestion;
+// Custom error class for API limit exceeded
+export class APILimitExceededError extends Error {
+  public limitType: "feedback" | "questions" | "both";
+
+  constructor(
+    limitType: "feedback" | "questions" | "both" = "both",
+    message?: string
+  ) {
+    super(message || `API limit exceeded for ${limitType}`);
+    this.name = "APILimitExceededError";
+    this.limitType = limitType;
+  }
+}
+
+// Detect if error means API limit
+function isLimitExceededError(error: any): boolean {
+  const limitIndicators = [
+    "rate limit",
+    "quota exceeded",
+    "limit exceeded",
+    "too many requests",
+    "403",
+    "429",
+    "overload",
+    "usage limit",
+    "billing",
+    "subscription",
+  ];
+
+  const errorMessage = error.message?.toLowerCase() || "";
+  const errorStatus = error.status || error.code || 0;
+
+  return (
+    limitIndicators.some((indicator) => errorMessage.includes(indicator)) ||
+    [403, 429, 503].includes(errorStatus)
+  );
+}
 
 async function callHuggingFaceChat(
   prompt: string,
@@ -41,10 +76,31 @@ async function callHuggingFaceChat(
   } catch (error: any) {
     console.error("Hugging Face API error:", error);
 
+    // Check if it's a limit exceeded error
+    if (isLimitExceededError(error)) {
+      throw new APILimitExceededError(
+        "both",
+        "Your API usage limit has been reached. Please upgrade to continue."
+      );
+    }
+
     // For specific model overload errors, try a fallback model
     if (error.message.includes("overload") || error.message.includes("503")) {
       console.log("Primary model overloaded, trying fallback model...");
-      return callHuggingFaceChat(prompt, "meta-llama/Llama-3.3-70B-Instruct");
+      try {
+        return await callHuggingFaceChat(
+          prompt,
+          "meta-llama/Llama-3.3-70B-Instruct"
+        );
+      } catch (fallbackError: any) {
+        if (isLimitExceededError(fallbackError)) {
+          throw new APILimitExceededError(
+            "both",
+            "Your API usage limit has been reached. Please upgrade to continue."
+          );
+        }
+        throw fallbackError;
+      }
     }
 
     throw new Error(`Hugging Face API error: ${error.message}`);
@@ -90,10 +146,10 @@ function extractJsonFromResponse(responseText: string) {
       responseText.includes("score") ||
       responseText.includes("suggestions")
     ) {
-      return MOCK_FEEDBACK;
+     throw new Error("Missing Hugging Face token");
     }
 
-    return MOCK_QUESTIONS;
+    throw new Error("Missing Hugging Face token");
   }
 }
 
@@ -101,17 +157,21 @@ export async function generateFeedback(
   parsedResume: any,
   jobDescription: string
 ) {
-  // Use mock response if no API key
   if (!process.env.HF_TOKEN) {
-    return MOCK_FEEDBACK;
+    throw new Error("Missing Hugging Face token");
   }
 
   try {
     const prompt = `
-You are an extremely critical technical hiring manager with 20+ years of experience at top tech companies. 
-Your task is to provide brutally honest, no-BS feedback on this resume for the specific role described.
+You are an experienced recruiter with 10+ years of experience reviewing resumes. 
+Your task is to provide **genuine, constructive, human-like feedback** for this resume based on the job description.
 
-IMPORTANT: Do NOT flag or criticize dates on the resume, even if they are before or after the job's stated start date. Focus only on skills, experience, formatting, and relevance. Ignore chronological sequencing unless it affects skill relevance.
+IMPORTANT:
+- Be fair and balanced. Highlight both **strengths** and areas for improvement.
+- Give a **realistic score** out of 10 with varied decimals (e.g., 7.3, 8.7, 6.5) — do not use fixed increments.
+- Focus on **skills, achievements, formatting, and relevance**.
+- Avoid overly harsh or "roasting" language. Be encouraging and human.
+- Provide actionable advice that a candidate could realistically apply.
 
 RESUME:
 ${JSON.stringify(parsedResume, null, 2)}
@@ -121,77 +181,60 @@ ${jobDescription}
 
 ANALYSIS REQUIREMENTS:
 
-1. HARSH SUITABILITY ASSESSMENT (1-10 scale):
-   - Score with decimal precision (e.g., 6.7/10)
-   - Direct comparison to top candidates you've hired for similar roles
-   - Specific reasons why this candidate would struggle compared to top performers
+1. BALANCED ASSESSMENT:
+   - Realistic score (1-10) with decimal precision
+   - Compare fairly against role requirements
+   - Mention strengths explicitly
 
-2. BRUTAL RESUME CRITIQUE:
-   - Identify every weakness, gap, and red flag (except dates)
-   - Point out vague language, unquantified claims, and missing evidence
-   - Highlight any experience that seems exaggerated or insufficient for the role level
-   - Call out missing technologies/methodologies mentioned in the JD
+2. CONSTRUCTIVE FEEDBACK:
+   - Identify gaps or areas to improve
+   - Suggest better phrasing or quantification
 
-3. ACTIONABLE IMPROVEMENTS (Prioritized by impact):
-   - Specific wording changes (exact before/after examples)
-   - Quantification opportunities with realistic numbers
-   - Structural changes to highlight relevant experience
-   - Skills to emphasize or de-emphasize
+3. ACTIONABLE IMPROVEMENTS:
+   - Specific wording improvements with examples
+   - Quantification opportunities
+   - Structural suggestions
 
-4. KEYWORD GAP ANALYSIS:
-   - Missing hard skills from JD with exact terms to add
-   - Missing soft skills/competencies from JD
-   - Overused or weak phrases to eliminate
+4. KEYWORD ANALYSIS:
+   - Missing hard skills and soft skills from JD
 
-5. BULLET POINT REWRITES (Top 5 most important):
-   - Transform vague responsibilities into quantified achievements
-   - Apply STAR method (Situation, Task, Action, Result)
-   - Match language and terminology from job description
+5. BULLET POINT ENHANCEMENTS (Top 3-5):
+   - Transform responsibilities into achievements
+   - Apply STAR method suggestions
 
-6. HARD TRUTHS SECTION:
-   - What would make you reject this resume immediately in a pile of 100+ applications
-   - Where this candidate truly stands against the competition
-   - Whether they should even apply for this role level
-
-TONE: Ruthlessly honest, direct, and critical. No sugarcoating. 
-Assume the candidate needs to hear the brutal truth to improve.
+TONE: Professional, constructive, and humanistic. Balance criticism with encouragement.
 
 ### Expected JSON Output Format
 
 {
-  "score": 6.7,
-  "scoreExplanation": "Detailed explanation of weaknesses leading to this score",
-  "tldr": "Brutally honest one-line assessment",
-  "brutalTruths": [
-    "Hard truth 1 about why they might not get hired",
-    "Hard truth 2 about experience gaps",
-    "Hard truth 3 about competition"
+  "score": 8.2,
+  "scoreExplanation": "Balanced explanation of strengths and areas for improvement",
+  "summary": "Constructive overall assessment",
+  "strengths": [
+    "Key strength 1",
+    "Key strength 2"
   ],
-  "redFlags": [
-    "Specific red flag 1",
-    "Specific red flag 2"
+  "areasForImprovement": [
+    "Constructive area 1",
+    "Constructive area 2"
   ],
   "suggestions": [
     {
-      "priority": "Critical/High/Medium",
-      "current": "Current weak phrasing",
-      "improved": "Stronger alternative with quantification"
+      "priority": "High/Medium/Low",
+      "suggestion": "Specific improvement suggestion",
+      "example": "Example implementation"
     }
   ],
   "missingKeywords": {
-    "hardSkills": ["Specific technology 1", "Specific technology 2"],
-    "softSkills": ["Specific competency 1", "Specific competency 2"]
+    "hardSkills": ["Technology 1", "Technology 2"],
+    "softSkills": ["Skill 1", "Skill 2"]
   },
   "exampleBullets": [
     {
-      "original": "Original weak bullet point",
-      "improved": "Rewritten with quantification and impact",
-      "explanation": "Why this rewrite is more effective"
+      "original": "Original bullet point",
+      "improved": "Enhanced version",
+      "reasoning": "Why this improves the resume"
     }
-  ],
-  "structuralIssues": [
-    "Issue with resume structure 1",
-    "Issue with resume structure 2"
   ]
 }
 `;
@@ -199,8 +242,14 @@ Assume the candidate needs to hear the brutal truth to improve.
     const responseText: string | any = await callHuggingFaceChat(prompt);
     return extractJsonFromResponse(responseText);
   } catch (error) {
+    if (error instanceof APILimitExceededError) {
+      // Set the specific limit type for feedback
+      error.limitType = "feedback";
+      throw error;
+    }
+
     console.error("Error generating feedback with Hugging Face:", error);
-    return MOCK_FEEDBACK;
+    throw error;
   }
 }
 
@@ -210,7 +259,7 @@ export async function generateInterviewQuestions(
   count: number = 10
 ) {
   if (!process.env.HF_TOKEN) {
-    return MOCK_QUESTIONS;
+    throw new Error("Missing Hugging Face token");
   }
 
   try {
@@ -291,10 +340,27 @@ TONE: Direct, challenging, and practical. Questions should reflect what would ac
     // Handle both array and object formats
     return Array.isArray(result) ? result : result.questions || [];
   } catch (error) {
+    if (error instanceof APILimitExceededError) {
+      // Set the specific limit type for questions
+      error.limitType = "questions";
+      throw error;
+    }
+
     console.error(
       "Error generating interview questions with Hugging Face:",
       error
     );
-    return MOCK_QUESTIONS;
+    throw error;
   }
+}
+
+// Utility function to check if both limits are exceeded
+export function checkBothLimitsExceeded(
+  feedbackError: any,
+  questionsError: any
+): boolean {
+  return (
+    feedbackError instanceof APILimitExceededError &&
+    questionsError instanceof APILimitExceededError
+  );
 }

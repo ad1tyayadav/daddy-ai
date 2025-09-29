@@ -1,11 +1,27 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { mockFeedback, mockQuestion } from "@/data/mockData/mockData";
 import { InferenceClient } from "@huggingface/inference";
 
-const client = process.env.HF_TOKEN
+// Alag clients for different services
+const feedbackClient = process.env.HF_TOKEN_FEEDBACK
+  ? new InferenceClient(process.env.HF_TOKEN_FEEDBACK)
+  : null;
+
+const questionsClient = process.env.HF_TOKEN_QUESTIONS
+  ? new InferenceClient(process.env.HF_TOKEN_QUESTIONS)
+  : null;
+
+// Fallback to main token if specific tokens are not provided
+const mainClient = process.env.HF_TOKEN
   ? new InferenceClient(process.env.HF_TOKEN)
   : null;
+
+// Helper function to get appropriate client
+function getClient(service: "feedback" | "questions"): InferenceClient | null {
+  if (service === "feedback" && feedbackClient) return feedbackClient;
+  if (service === "questions" && questionsClient) return questionsClient;
+  return mainClient; // fallback
+}
 
 // Custom error class for API limit exceeded
 export class APILimitExceededError extends Error {
@@ -47,10 +63,15 @@ function isLimitExceededError(error: any): boolean {
 
 async function callHuggingFaceChat(
   prompt: string,
+  service: "feedback" | "questions",
   model: string = "Qwen/Qwen3-Next-80B-A3B-Instruct"
 ) {
+  const client = getClient(service);
+
   if (!client) {
-    throw new Error("HF_TOKEN not configured");
+    const tokenName =
+      service === "feedback" ? "HF_TOKEN_FEEDBACK" : "HF_TOKEN_QUESTIONS";
+    throw new Error(`${tokenName} or HF_TOKEN not configured`);
   }
 
   try {
@@ -79,8 +100,8 @@ async function callHuggingFaceChat(
     // Check if it's a limit exceeded error
     if (isLimitExceededError(error)) {
       throw new APILimitExceededError(
-        "both",
-        "Your API usage limit has been reached. Please upgrade to continue."
+        service,
+        `Your ${service} API usage limit has been reached. Please upgrade to continue.`
       );
     }
 
@@ -90,13 +111,14 @@ async function callHuggingFaceChat(
       try {
         return await callHuggingFaceChat(
           prompt,
+          service,
           "meta-llama/Llama-3.3-70B-Instruct"
         );
       } catch (fallbackError: any) {
         if (isLimitExceededError(fallbackError)) {
           throw new APILimitExceededError(
-            "both",
-            "Your API usage limit has been reached. Please upgrade to continue."
+            service,
+            `Your ${service} API usage limit has been reached. Please upgrade to continue.`
           );
         }
         throw fallbackError;
@@ -146,10 +168,10 @@ function extractJsonFromResponse(responseText: string) {
       responseText.includes("score") ||
       responseText.includes("suggestions")
     ) {
-     throw new Error("Missing Hugging Face token");
+      throw new Error("Failed to parse feedback response");
     }
 
-    throw new Error("Missing Hugging Face token");
+    throw new Error("Failed to parse questions response");
   }
 }
 
@@ -157,8 +179,9 @@ export async function generateFeedback(
   parsedResume: any,
   jobDescription: string
 ) {
-  if (!process.env.HF_TOKEN) {
-    throw new Error("Missing Hugging Face token");
+  // Check if any token is available for feedback
+  if (!feedbackClient && !mainClient) {
+    throw new Error("HF_TOKEN_FEEDBACK or HF_TOKEN not configured");
   }
 
   try {
@@ -239,12 +262,14 @@ TONE: Professional, constructive, and humanistic. Balance criticism with encoura
 }
 `;
 
-    const responseText: string | any = await callHuggingFaceChat(prompt);
+    const responseText: string | any = await callHuggingFaceChat(
+      prompt,
+      "feedback"
+    );
     return extractJsonFromResponse(responseText);
   } catch (error) {
     if (error instanceof APILimitExceededError) {
-      // Set the specific limit type for feedback
-      error.limitType = "feedback";
+      // Already set to "feedback" in callHuggingFaceChat
       throw error;
     }
 
@@ -258,8 +283,9 @@ export async function generateInterviewQuestions(
   jobDescription: string,
   count: number = 10
 ) {
-  if (!process.env.HF_TOKEN) {
-    throw new Error("Missing Hugging Face token");
+  // Check if any token is available for questions
+  if (!questionsClient && !mainClient) {
+    throw new Error("HF_TOKEN_QUESTIONS or HF_TOKEN not configured");
   }
 
   try {
@@ -334,15 +360,17 @@ TONE: Direct, challenging, and practical. Questions should reflect what would ac
 ]
 `;
 
-    const responseText: string | any = await callHuggingFaceChat(prompt);
+    const responseText: string | any = await callHuggingFaceChat(
+      prompt,
+      "questions"
+    );
     const result = extractJsonFromResponse(responseText);
 
     // Handle both array and object formats
     return Array.isArray(result) ? result : result.questions || [];
   } catch (error) {
     if (error instanceof APILimitExceededError) {
-      // Set the specific limit type for questions
-      error.limitType = "questions";
+      // Already set to "questions" in callHuggingFaceChat
       throw error;
     }
 
@@ -363,4 +391,15 @@ export function checkBothLimitsExceeded(
     feedbackError instanceof APILimitExceededError &&
     questionsError instanceof APILimitExceededError
   );
+}
+
+// Utility to check token availability
+export function checkTokenAvailability(): {
+  feedbackAvailable: boolean;
+  questionsAvailable: boolean;
+} {
+  return {
+    feedbackAvailable: !!(feedbackClient || mainClient),
+    questionsAvailable: !!(questionsClient || mainClient),
+  };
 }

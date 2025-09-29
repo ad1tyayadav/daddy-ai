@@ -240,8 +240,8 @@ function ResumePage() {
             />
 
             <div className="mt-6">
-              {activeTab === "feedback" && feedback && <Feedback feedback={feedback} />}
-              {activeTab === "questions" && <InterviewQuestions questions={questions} />}
+   {activeTab === "feedback" && <Feedback feedback={feedback} />}
+  {activeTab === "questions" && <InterviewQuestions questions={questions} />}
             </div>
           </motion.div>
         )}

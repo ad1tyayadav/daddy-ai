@@ -18,8 +18,8 @@ export function HeroSectionOne() {
       <div className="absolute inset-x-0 bottom-0 h-px w-full bg-neutral-200/80 dark:bg-neutral-800/80"></div>
 
       <div className="px-4 py-10 md:py-20">
-        <h1 className="relative leading-tight z-10 mx-auto max-w-4xl text-center text-2xl font-bold text-slate-700 md:text-4xl lg:text-7xl dark:text-slate-300">
-          {"Upload   your   Resume, and get "
+        <h1 className="relative leading-tight z-10 mx-auto max-w-4xl text-center text-2xl font-bold text-slate-700 md:text-4xl lg:text-7xl dark:text-slate-100">
+          {"Upload  your  Resume, and get "
             .split(" ")
             .map((word, index) => (
               <motion.span
@@ -89,26 +89,29 @@ export function HeroSectionOne() {
 
             {/* Meme */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="https://c.tenor.com/8FnHltWQJkYAAAAd/tenor.gif"
-              alt="Funny Meme"
+            <Image
+              src="/images/Gareeb.png"
+              alt="Meme"
+              width={200}
+              height={200}
               className="w-full rounded-md mb-4"
             />
+            <p className="text-center mt-4 text-gray-700 dark:text-gray-300">
+              Scan the QR code and pay me whatever you want 💸
+            </p>
 
             {/* QR Code */}
-            <div className="flex justify-center rounded">
+            <div className="mt-6 flex justify-center rounded">
               <Image
                 src="/images/qr.png"
                 alt="Pay Me QR Code"
                 width={400}
                 height={200}
-                className="w-40 h-60 rounded object-contain"
+                className="w-[50%] rounded object-contain"
               />
             </div>
 
-            <p className="text-center mt-4 text-gray-700 dark:text-gray-300">
-              Scan the QR code and pay me whatever you want 💸
-            </p>
+
           </div>
         </div>
       )}
